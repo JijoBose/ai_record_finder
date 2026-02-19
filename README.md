@@ -1,43 +1,111 @@
-# AiRecordFinder
+# AIRecordFinder
 
-TODO: Delete this and the text below, and describe your gem
+`ai_record_finder` converts natural language prompts into safe `ActiveRecord::Relation` objects.
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/ai_record_finder`. To experiment with that code, run `bin/console` for an interactive prompt.
+It is designed for B2B Rails applications that need strict query safety, tenant boundaries, and model-level authorization.
+
+Basic developer documentation: `docs/DEVELOPER_GUIDE.md`
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
+Add to your Gemfile:
 
-Install the gem and add to the application's Gemfile by executing:
-
-```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+```ruby
+gem "ai_record_finder"
 ```
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+Then run:
 
 ```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+bundle install
+```
+
+## Configuration
+
+```ruby
+AIRecordFinder.configure do |config|
+  config.api_key = ENV.fetch("OPENAI_API_KEY")
+  config.model_name = "gpt-4o-mini"
+  config.max_limit = 100
+  config.allowed_models = [Invoice, User]
+
+  # Optional: allow controlled joins by model.
+  config.allowed_associations = {
+    "Invoice" => ["user"]
+  }
+end
 ```
 
 ## Usage
 
-TODO: Write usage instructions here
+```ruby
+relation = AIRecordFinder.query(
+  prompt: "Unpaid invoices above 50000 from last quarter",
+  model: Invoice
+)
 
-## Development
+# Always ActiveRecord::Relation
+relation.limit(10).pluck(:id)
+```
 
-After checking out the repo, run `bin/setup` to install dependencies. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+## Security Model
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+`ai_record_finder` is fail-closed and built to avoid LLM-to-SQL injection:
 
-## Contributing
+- AI is forced to return JSON DSL only (no SQL allowed).
+- AI output is sanitized (markdown/code fences stripped) and JSON-parsed safely.
+- Unknown keys/operators/fields are rejected.
+- Fields are validated against model schema introspection.
+- `limit` is strictly validated and hard-capped by configuration.
+- Models must be explicitly whitelisted in `allowed_models`.
+- Optional joins are blocked unless explicitly whitelisted in `allowed_associations`.
+- If model defines `current_tenant_scope`, it is always merged.
+- No `eval`, no destructive operations, no raw SQL execution from AI output.
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/ai_record_finder. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [code of conduct](https://github.com/[USERNAME]/ai_record_finder/blob/master/CODE_OF_CONDUCT.md).
+## Architecture Overview
 
-## License
+Core components:
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+- `AIRecordFinder::Configuration`: runtime safety and API settings.
+- `AIRecordFinder::SchemaIntrospector`: model table/column/association/enum summary.
+- `AIRecordFinder::PromptBuilder`: strict system prompt with schema and DSL contract.
+- `AIRecordFinder::Client`: OpenAI-compatible HTTP transport (Faraday).
+- `AIRecordFinder::AIAdapter`: AI response extraction and JSON parsing.
+- `AIRecordFinder::DSLParser`: validates DSL structure and values.
+- `AIRecordFinder::SafetyGuard`: model authorization, limit policies, join policies, tenant scope.
+- `AIRecordFinder::QueryBuilder`: converts validated DSL into `ActiveRecord::Relation`.
+- `AIRecordFinder::Railtie`: auto-load support in Rails.
 
-## Code of Conduct
+## Error Types
 
-Everyone interacting in the AiRecordFinder project's codebases, issue trackers, chat rooms and mailing lists is expected to follow the [code of conduct](https://github.com/[USERNAME]/ai_record_finder/blob/master/CODE_OF_CONDUCT.md).
+- `AIRecordFinder::InvalidModelError`
+- `AIRecordFinder::InvalidDSL`
+- `AIRecordFinder::AIResponseError`
+- `AIRecordFinder::UnauthorizedModel`
+
+## Testing
+
+Run:
+
+```bash
+bundle exec rspec
+```
+
+Included tests cover:
+
+- Valid query generation
+- Invalid field rejection
+- Limit overflow
+- Unknown operator
+- Unauthorized model
+- JSON injection attempt
+
+## Pro Roadmap
+
+Potential Pro features:
+
+- Query explain/preview before execution
+- Auditable prompt and DSL logs with redaction controls
+- Policy packs (SOC2/HIPAA presets)
+- Per-tenant usage quotas and rate-limits
+- Multi-model query planning with approval workflows
