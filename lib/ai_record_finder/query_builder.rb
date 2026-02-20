@@ -11,7 +11,8 @@ module AIRecordFinder
     end
 
     def call
-      SafetyGuard.validate_joins!(model: @model, joins: @dsl["joins"], configuration: @configuration)
+      @joins = requested_joins
+      SafetyGuard.validate_joins!(model: @model, joins: @joins, configuration: @configuration)
 
       relation = @model.all
       relation = SafetyGuard.apply_tenant_scope(model: @model, relation: relation)
@@ -24,7 +25,7 @@ module AIRecordFinder
     private
 
     def apply_joins(relation)
-      Array(@dsl["joins"]).reduce(relation) do |current_relation, association_name|
+      @joins.reduce(relation) do |current_relation, association_name|
         current_relation.left_joins(association_name.to_sym)
       end
     end
@@ -40,11 +41,11 @@ module AIRecordFinder
     end
 
     def apply_filter(relation, field, operator, value)
-      attribute = @arel_table[field]
+      attribute = resolve_attribute(field)
 
       case operator
       when "eq"
-        relation.where(field => value)
+        relation.where(attribute.eq(value))
       when "gt"
         relation.where(attribute.gt(value))
       when "lt"
@@ -54,9 +55,9 @@ module AIRecordFinder
       when "lte"
         relation.where(attribute.lteq(value))
       when "between"
-        relation.where(field => value[0]..value[1])
+        relation.where(attribute.between(value[0]..value[1]))
       when "in"
-        relation.where(field => value)
+        relation.where(attribute.in(value))
       when "like"
         pattern = "%#{ActiveRecord::Base.sanitize_sql_like(value.to_s)}%"
         relation.where(attribute.matches(pattern))
@@ -71,7 +72,33 @@ module AIRecordFinder
 
       field = sort.fetch("field")
       direction = sort.fetch("direction")
-      relation.reorder(field => direction.to_sym)
+      attribute = resolve_attribute(field)
+      relation.reorder(direction == "asc" ? attribute.asc : attribute.desc)
+    end
+
+    def requested_joins
+      explicit = Array(@dsl["joins"]).map(&:to_s)
+      from_filters = @dsl.fetch("filters", []).map { |filter| association_for_field(filter.fetch("field")) }.compact
+      from_sort = [association_for_field(@dsl.dig("sort", "field"))].compact
+
+      (explicit + from_filters + from_sort).uniq
+    end
+
+    def association_for_field(field)
+      return nil unless field.to_s.include?(".")
+
+      field.to_s.split(".", 2).first
+    end
+
+    def resolve_attribute(field)
+      field_name = field.to_s
+      return @arel_table[field_name] unless field_name.include?(".")
+
+      association_name, column_name = field_name.split(".", 2)
+      reflection = @model.reflect_on_association(association_name.to_sym)
+      raise InvalidDSL, "Unknown association join: #{association_name}" unless reflection
+
+      reflection.klass.arel_table[column_name]
     end
   end
 end

@@ -33,7 +33,8 @@ module AIRecordFinder
         }
 
         Field constraints:
-        - Allowed fields are exactly these columns: #{@schema[:columns].keys.sort.join(', ')}
+        - Allowed base fields are these columns: #{@schema[:columns].keys.sort.join(', ')}
+        - Associated fields must use "association.column" (example: "user.email")
         - Allowed sort directions: asc, desc
         - For operator "between", value must be an array of two values
         - For operator "in", value must be an array

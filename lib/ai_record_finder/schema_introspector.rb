@@ -13,6 +13,7 @@ module AIRecordFinder
         table: @model.table_name,
         columns: columns_summary,
         associations: associations_summary,
+        association_columns: association_columns_summary,
         enums: enums_summary
       }
     end
@@ -42,6 +43,23 @@ module AIRecordFinder
       return {} unless @model.respond_to?(:defined_enums)
 
       @model.defined_enums.transform_values(&:keys)
+    end
+
+    def association_columns_summary
+      @model.reflect_on_all_associations.each_with_object({}) do |association, memo|
+        next if association.polymorphic?
+
+        columns = association.klass.columns.each_with_object({}) do |column, column_memo|
+          column_memo[column.name] = { type: column.type }
+        end
+
+        memo[association.name.to_s] = {
+          table: association.klass.table_name,
+          columns: columns
+        }
+      rescue StandardError
+        # Skip associations that cannot be safely introspected.
+      end
     end
   end
 end

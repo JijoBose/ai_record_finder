@@ -6,9 +6,13 @@ RSpec.describe AIRecordFinder do
   let(:adapter) { instance_double("AIAdapter") }
 
   before do
-    Invoice.create!(user_id: 1, account_id: 10, amount_cents: 80_000, status: "unpaid", issued_at: Time.now)
-    Invoice.create!(user_id: 2, account_id: 10, amount_cents: 10_000, status: "paid", issued_at: Time.now)
-    Invoice.create!(user_id: 3, account_id: 99, amount_cents: 90_000, status: "unpaid", issued_at: Time.now)
+    user_1 = User.create!(name: "Alex", email: "alex@example.com", account_id: 10)
+    user_2 = User.create!(name: "Sam", email: "sam@example.com", account_id: 10)
+    user_3 = User.create!(name: "Taylor", email: "taylor@example.com", account_id: 99)
+
+    Invoice.create!(user_id: user_1.id, account_id: 10, amount_cents: 80_000, status: "unpaid", issued_at: Time.now)
+    Invoice.create!(user_id: user_2.id, account_id: 10, amount_cents: 10_000, status: "paid", issued_at: Time.now)
+    Invoice.create!(user_id: user_3.id, account_id: 99, amount_cents: 90_000, status: "unpaid", issued_at: Time.now)
   end
 
   it "returns an ActiveRecord::Relation for a valid query" do
@@ -103,5 +107,45 @@ RSpec.describe AIRecordFinder do
     expect do
       described_class.query(prompt: "inject", model: Invoice, ai_adapter: adapter)
     end.to raise_error(AIRecordFinder::InvalidDSL, /Unknown DSL keys/)
+  end
+
+  it "supports filtering by associated model fields" do
+    allow(adapter).to receive(:call).and_return(
+      {
+        "filters" => [
+          { "field" => "user.email", "operator" => "like", "value" => "alex@" },
+          { "field" => "status", "operator" => "eq", "value" => "unpaid" }
+        ],
+        "limit" => 10
+      }
+    )
+
+    relation = described_class.query(
+      prompt: "Unpaid invoices for users with email containing alex@",
+      model: Invoice,
+      ai_adapter: adapter
+    )
+
+    expect(relation.count).to eq(1)
+    expect(relation.first.user.email).to eq("alex@example.com")
+  end
+
+  it "rejects associated-field filter when join is not allowed by policy" do
+    AIRecordFinder.configure do |c|
+      c.allowed_associations = {}
+    end
+
+    allow(adapter).to receive(:call).and_return(
+      {
+        "filters" => [
+          { "field" => "user.email", "operator" => "eq", "value" => "alex@example.com" }
+        ],
+        "limit" => 10
+      }
+    )
+
+    expect do
+      described_class.query(prompt: "Invoices for alex@example.com", model: Invoice, ai_adapter: adapter)
+    end.to raise_error(AIRecordFinder::InvalidDSL, /Join not allowed by policy: user/)
   end
 end

@@ -49,6 +49,8 @@ relation = AIRecordFinder.query(
 )
 ```
 
+For associated-table constraints, use `association.column` semantics in the request intent, such as: "unpaid invoices where `user.email` contains `@acme.com`". The gem will auto-join associations used by these fields, but they must still be whitelisted in `allowed_associations`.
+
 The return value is always an `ActiveRecord::Relation`, so you can chain it:
 
 ```ruby

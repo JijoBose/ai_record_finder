@@ -22,6 +22,8 @@ bundle install
 
 ## Configuration
 
+Add an initializer at `config/initializers/ai_record_finder.rb`:
+
 ```ruby
 AIRecordFinder.configure do |config|
   config.api_key = ENV.fetch("OPENAI_API_KEY")
@@ -47,6 +49,8 @@ relation = AIRecordFinder.query(
 # Always ActiveRecord::Relation
 relation.limit(10).pluck(:id)
 ```
+
+For associated-table constraints, reference fields as `association.column` in natural language intent (for example: "invoices where `user.email` contains `@acme.com`"). The gem will auto-join needed associations, but they must still be whitelisted in `allowed_associations`.
 
 ## Security Model
 

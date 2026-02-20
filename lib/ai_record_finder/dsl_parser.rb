@@ -14,6 +14,7 @@ module AIRecordFinder
       @max_limit = max_limit
       @columns = @schema.fetch(:columns).keys
       @associations = @schema.fetch(:associations).keys
+      @association_columns = @schema.fetch(:association_columns, {})
     end
 
     def call
@@ -116,7 +117,23 @@ module AIRecordFinder
     end
 
     def validate_field!(field)
-      raise InvalidDSL, "Unknown field: #{field}" unless @columns.include?(field)
+      return if @columns.include?(field)
+      return if valid_association_field?(field)
+
+      raise InvalidDSL, "Unknown field: #{field}"
+    end
+
+    def valid_association_field?(field)
+      association_name, column_name = field.split(".", 2)
+      return false if association_name.to_s.empty? || column_name.to_s.empty?
+
+      return false unless @associations.include?(association_name)
+
+      association_columns = @association_columns.fetch(association_name, {}).fetch(:columns, nil) ||
+                            @association_columns.fetch(association_name, {}).fetch("columns", nil)
+      return false unless association_columns
+
+      association_columns.keys.map(&:to_s).include?(column_name)
     end
 
     def validate_operator!(operator)
