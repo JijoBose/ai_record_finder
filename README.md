@@ -4,7 +4,7 @@
 
 It is designed for B2B Rails applications that need strict query safety, tenant boundaries, and model-level authorization.
 
-Basic developer documentation: `docs/DEVELOPER_GUIDE.md`
+Documentation homepage: `docs/HOME.md`
 
 ## Installation
 
