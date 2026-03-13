@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.summary = "Natural language to safe ActiveRecord::Relation queries"
   spec.description = "AIRecordFinder converts natural language into validated, schema-aware and tenant-safe ActiveRecord queries via an AI-generated JSON DSL."
   spec.homepage = "https://ai-record-finder.local/docs"
-  spec.license = "MIT"
+  spec.license = "AGPL-3.0-only"
   spec.required_ruby_version = ">= 3.2.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
