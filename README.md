@@ -38,6 +38,49 @@ AIRecordFinder.configure do |config|
 end
 ```
 
+## Providers
+
+`ai_record_finder` ships with native adapters for two providers. Select one
+with `config.provider` (default: `:openai`).
+
+### OpenAI (default)
+
+```ruby
+AIRecordFinder.configure do |config|
+  config.provider = :openai
+  config.api_key  = ENV.fetch("OPENAI_API_KEY")
+  # config.model_name defaults to "gpt-4o-mini"
+end
+```
+
+This also covers any OpenAI-compatible endpoint (Azure OpenAI, OpenRouter,
+LiteLLM, Ollama, vLLM, ...) — point `api_base_url` at the gateway:
+
+```ruby
+config.api_base_url = "https://openrouter.ai/api/v1"
+```
+
+### Anthropic (native Messages API)
+
+The Anthropic adapter talks to the native `/v1/messages` API (`x-api-key`
+auth, `anthropic-version` header, top-level `system` prompt, `content`-block
+responses) — not the OpenAI-compatibility shim.
+
+```ruby
+AIRecordFinder.configure do |config|
+  config.provider = :anthropic
+  config.api_key  = ENV.fetch("ANTHROPIC_API_KEY")
+  config.model_name = "claude-sonnet-4-6" # default; override for your account access
+
+  # Anthropic-specific knobs:
+  config.max_tokens        = 1024         # required by the Messages API; default 1024
+  config.anthropic_version = "2023-06-01" # default
+end
+```
+
+When `provider` is set, `model_name` and `api_base_url` resolve to that
+provider's defaults unless you assign them explicitly.
+
 ## Usage
 
 ```ruby
@@ -70,10 +113,14 @@ For associated-table constraints, reference fields as `association.column` in na
 
 Core components:
 
-- `AIRecordFinder::Configuration`: runtime safety and API settings.
+- `AIRecordFinder::Configuration`: runtime safety, provider, and API settings.
 - `AIRecordFinder::SchemaIntrospector`: model table/column/association/enum summary.
 - `AIRecordFinder::PromptBuilder`: strict system prompt with schema and DSL contract.
-- `AIRecordFinder::Client`: OpenAI-compatible HTTP transport (Faraday).
+- `AIRecordFinder::Providers`: provider registry and per-vendor transports
+  (`Providers::OpenAI`, `Providers::Anthropic`) built on a shared
+  `Providers::Base` (Faraday).
+- `AIRecordFinder::Client`: transport facade that selects and delegates to the
+  configured provider.
 - `AIRecordFinder::AIAdapter`: AI response extraction and JSON parsing.
 - `AIRecordFinder::DSLParser`: validates DSL structure and values.
 - `AIRecordFinder::SafetyGuard`: model authorization, limit policies, join policies, tenant scope.
@@ -86,6 +133,7 @@ Core components:
 - `AIRecordFinder::InvalidDSL`
 - `AIRecordFinder::AIResponseError`
 - `AIRecordFinder::UnauthorizedModel`
+- `AIRecordFinder::ConfigurationError` (missing API key, unknown provider)
 
 ## Testing
 

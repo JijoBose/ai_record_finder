@@ -15,4 +15,7 @@ module AIRecordFinder
 
   # Raised when a model is not explicitly whitelisted.
   class UnauthorizedModel < Error; end
+
+  # Raised when the gem is misconfigured (missing API key, unknown provider, ...).
+  class ConfigurationError < Error; end
 end

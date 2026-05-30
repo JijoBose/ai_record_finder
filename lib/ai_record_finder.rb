@@ -3,6 +3,7 @@
 require_relative "ai_record_finder/version"
 require_relative "ai_record_finder/errors"
 require_relative "ai_record_finder/configuration"
+require_relative "ai_record_finder/providers"
 require_relative "ai_record_finder/client"
 require_relative "ai_record_finder/schema_introspector"
 require_relative "ai_record_finder/prompt_builder"
